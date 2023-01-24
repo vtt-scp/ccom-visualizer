@@ -1,0 +1,47 @@
+version: "3.9"
+
+services:
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:main
+    #restart: unless-stopped
+    #ports:
+    #  - "3000:3000"
+    volumes:
+      - grafana-storage:/var/lib/grafana
+    #      - "/etc/ssl/certs/ca-certificates.crt:/etc/ssl/certs/ca-certificates.crt"
+    environment:
+      GF_DEFAULT_APP_MODE: development
+    network_mode: "host"
+
+  grafana-broker:
+    container_name: grafana-broker
+    image: eclipse-mosquitto:2.0.15
+    volumes:
+      - ./mosquitto/mosquitto.grafana.conf:/mosquitto/config/mosquitto.conf
+    #ports:
+    #  - "1883:1883"
+    #  - "9001:9001"
+    network_mode: host
+
+  mosquitto:
+    container_name: mosquitto
+    image: eclipse-mosquitto:2.0.15
+    volumes:
+      - ./mosquitto/mosquitto.ccom.conf:/mosquitto/config/mosquitto.conf
+    #ports:
+    #  - "1884:1884"
+    network_mode: host
+
+  converter:
+    container_name: grafana-converter
+    #restart: unless-stopped
+    image: converter
+    build: ./converter
+    depends_on:
+      - mosquitto
+      - grafana-broker
+    network_mode: host
+
+volumes:
+  grafana-storage:
