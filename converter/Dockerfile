@@ -8,7 +8,7 @@ RUN python3 -m venv /opt/venv
 RUN /opt/venv/bin/pip install --upgrade pip
 
 # Install requirements
-COPY requirements.txt .
+COPY requirements/app.txt requirements.txt
 RUN /opt/venv/bin/pip install -r requirements.txt
 
 # ========== Final image ==========
@@ -19,7 +19,8 @@ WORKDIR /code
 # Copy Python venv with requirements installed
 COPY --from=python /opt /opt
 # Set virtualenv path as Python path
-ENV PATH="/opt/venv/bin:$PATH"
+ENV VIRTUAL_ENV=/opt/venv
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Copy required project files
 COPY main.py .

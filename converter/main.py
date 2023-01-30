@@ -1,95 +1,77 @@
+"""Convert CCOM messages from an MQTT broker to format supported by Grafana."""
+
 import json
-import random
-import signal
-import sys
-import time
-import uuid
-from datetime import datetime
-from zoneinfo import ZoneInfo
+import os
+from typing import Any
 
-from paho.mqtt.client import Client
+from paho.mqtt.client import Client, MQTTMessage
 
-MEASUREMENT_LOCATION_ID = "7026830e-e0e4-45eb-bf1b-09eff4a612a3"
-CCOM_BROKER = "localhost"
-CCOM_BROKER_PORT = 1884
-GRAFANA_BROKER = "localhost"
-GRAFANA_BROKER_PORT = 1883
-GENERATOR = True
-
-ccom_broker = Client(client_id="generator")
-grafana_broker = Client(client_id="ccom")
+GRAFANA_BROKER = os.getenv("GRAFANA_BROKER")
+GRAFANA_BROKER_PORT = int(os.getenv("GRAFANA_BROKER_PORT"))
+CCOM_BROKER = os.getenv("CCOM_BROKER")
+CCOM_BROKER_PORT = int(os.getenv("CCOM_BROKER_PORT"))
+CCOM_BROKER_USERNAME = os.getenv("CCOM_BROKER_USERNAME")
+CCOM_BROKER_PASSWORD = os.getenv("CCOM_BROKER_PASSWORD")
 
 
-def utc_rfc3339_to_datetime(date: str) -> datetime:
-    """Convert UTC RFC 3339 datetime string to Python datetime object"""
-
-    return datetime.fromisoformat(date.replace("Z", "")).replace(tzinfo=ZoneInfo("UTC"))
-
-
-def on_connect(client, userdata, flags, rc) -> None:
-    print("Connected with result code " + str(rc))
+def on_connect(_client: Client, _userdata: Any, _flags: dict, result_code: int) -> None:
+    """Notify when connected to a broker."""
+    print(f"Connected with result code: {result_code}")
 
 
-def on_message(client: Client, userdata, message) -> None:
-    ccom_data = json.loads(message.payload).get("CCOMData")
-    grafana_data = [
-        {
-            "value": entity["data"]["measure"]["value"],
-            "timestamp": entity["recorded"]["dateTime"],
-        }
-        for entity in ccom_data["entities"]
-        if entity["@@type"] == "SingleDataMeasurement"
-    ]
-    for data_point in grafana_data:
-        grafana_broker.publish(f"ccom/{message.topic}", json.dumps(data_point), qos=2)
+def on_message(_client: Client, grafana_broker: Client, message: MQTTMessage) -> None:
+    """
+    Convert incoming CCOM messages to format supported by Grafana and
+    publish to the MQTT broker Grafana is listening.
+
+    Currently, Grafana MQTT datasource is very limited in supported data formats.
+    Only simple key-value pairs are supported.
+    """
+
+    data = json.loads(message.payload)
+    if not isinstance(data, dict) or "CCOMData" not in data:
+        return
+
+    for entity in data["CCOMData"]["entities"]:
+
+        # CCOM message value parsing and format for grafana visualization
+        if entity["@@type"] == "SingleDataMeasurement":
+            uuid = entity["measurementLocation"]["UUID"]
+            name = entity["measurementLocation"].get("name")
+            grafana_data_point = {name or uuid: entity["data"]["measure"]["value"]}
+        else:
+            continue
+
+        grafana_broker.publish(
+            f"{message.topic}", json.dumps(grafana_data_point), qos=2
+        )
 
 
-def publish_generated_ccom_message(client: Client) -> None:
-    ccom_message = {
-        "CCOMData": {
-            "@ccomVersion": "4.1.0-draft",
-            "entities": [
-                {
-                    "@@type": "SingleDataMeasurement",
-                    "UUID": str(uuid.uuid4()),
-                    "measurementLocation": {"UUID": MEASUREMENT_LOCATION_ID},
-                    "recorded": {
-                        "@format": "RFC 3339",
-                        "dateTime": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%S.%fZ"),
-                    },
-                    "data": {
-                        "measure": {"value": round(random.uniform(60, 80), 0)},
-                    },
-                }
-            ],
-        }
-    }
-    client.publish(
-        f"{MEASUREMENT_LOCATION_ID}", payload=json.dumps(ccom_message), qos=2
-    )
+def main() -> None:
+    """Main function"""
 
-
-if __name__ == "__main__":
-
-    # mqtt.username_pw_set("generator", os.getenv("GEN_PW", "whabbajack"))
-    ccom_broker.on_connect = on_connect
+    grafana_broker = Client(client_id="ccom")
     grafana_broker.on_connect = on_connect
+    ccom_broker = Client(client_id="grafana")
+    ccom_broker.on_connect = on_connect
     ccom_broker.on_message = on_message
-    ccom_broker.connect(CCOM_BROKER, port=CCOM_BROKER_PORT)
-    grafana_broker.connect(GRAFANA_BROKER, port=GRAFANA_BROKER_PORT)
-    ccom_broker.subscribe("#", qos=2)
+    ccom_broker.user_data_set(grafana_broker)
 
-    grafana_broker.loop_start()
+    grafana_broker.connect(GRAFANA_BROKER, port=GRAFANA_BROKER_PORT)
+    if CCOM_BROKER_USERNAME and CCOM_BROKER_PASSWORD:
+        ccom_broker.username_pw_set(CCOM_BROKER_USERNAME, CCOM_BROKER_PASSWORD)
+    ccom_broker.connect(CCOM_BROKER, port=CCOM_BROKER_PORT)
+    ccom_broker.subscribe("ccom/#", qos=2)
 
     try:
-        if GENERATOR:
-            ccom_broker.loop_start()
-            while True:
-                publish_generated_ccom_message(ccom_broker)
-                time.sleep(3)
-        else:
-            ccom_broker.loop_forever()
+        grafana_broker.loop_start()
+        ccom_broker.loop_forever()
     except KeyboardInterrupt:
         print("User interrupt")
     finally:
         ccom_broker.loop_stop()
+        grafana_broker.loop_stop()
+
+
+if __name__ == "__main__":
+    main()

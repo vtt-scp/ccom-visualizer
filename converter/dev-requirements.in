@@ -1,5 +1,0 @@
-black
-pycodestyle
-pylint
-pytest
-mypy

@@ -1,0 +1,19 @@
+[project]
+name = "ccom-grafana"
+version = "0.1.0"
+dependencies = ["paho-mqtt"]
+
+# Development settings
+
+[project.optional-dependencies]
+dev = ["black", "pylint", "mypy", "pytest"]
+
+[tool.black]
+line-length = 88
+
+[tool.pylint.format]
+max-line-length = 88
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

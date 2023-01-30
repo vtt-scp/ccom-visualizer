@@ -1,40 +1,28 @@
 SHELL=/bin/bash
 
-venv:
-	python3.10 -m venv .venv
-
 pip-tools:
-	source .venv/bin/activate && \
-		pip install --upgrade pip && pip install pip-tools && \
-		deactivate
+	pip install --upgrade pip pip-tools wheel
 
-dev-requirements:
-	source .venv/bin/activate && \
-		cd converter && \
-		pip-compile --resolver=backtracking requirements.in && \
-		pip-compile --resolver=backtracking dev-requirements.in && \
-		pip-sync requirements.txt dev-requirements.txt && \
-		deactivate
+requirements: pip-tools
+	pip-compile --generate-hashes --resolver backtracking -o converter/requirements/app.txt converter/pyproject.toml
+	pip-compile --generate-hashes --extra dev --resolver backtracking -o converter/requirements/dev.txt converter/pyproject.toml
 
-dev-environment: venv pip-tools dev-requirements
-
-requirements:
-	source .venv/bin/activate && \
-		cd converter && \
-		pip-compile --resolver=backtracking requirements.in && \
-		pip-sync requirements.txt && \
-		deactivate
+sync-requirements:
+	pip-sync converter/requirements/dev.txt converter/requirements/app.txt
 
 build:
 	docker compose build
 
-up:
+debug:
 	docker compose up
+
+up:
+	docker compose up -d
+
+down:
+	docker compose down
 
 restart: down up
 
 grafana-install-mqtt:
 	docker compose exec -it grafana grafana-cli plugins install grafana-mqtt-datasource
-
-down:
-	docker compose down
