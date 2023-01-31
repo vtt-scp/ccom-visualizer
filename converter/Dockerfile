@@ -30,4 +30,4 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
 # Run service
-CMD python main.py
+ENTRYPOINT ["python", "main.py"]

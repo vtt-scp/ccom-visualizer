@@ -2,14 +2,16 @@
 
 import json
 import os
+import signal
+import sys
 from typing import Any
 
 from paho.mqtt.client import Client, MQTTMessage
 
-GRAFANA_BROKER = os.getenv("GRAFANA_BROKER")
-GRAFANA_BROKER_PORT = int(os.getenv("GRAFANA_BROKER_PORT"))
-CCOM_BROKER = os.getenv("CCOM_BROKER")
-CCOM_BROKER_PORT = int(os.getenv("CCOM_BROKER_PORT"))
+GRAFANA_BROKER = os.environ["GRAFANA_BROKER"]
+GRAFANA_BROKER_PORT = int(os.environ["GRAFANA_BROKER_PORT"])
+CCOM_BROKER = os.environ["CCOM_BROKER"]
+CCOM_BROKER_PORT = int(os.environ["CCOM_BROKER_PORT"])
 CCOM_BROKER_USERNAME = os.getenv("CCOM_BROKER_USERNAME")
 CCOM_BROKER_PASSWORD = os.getenv("CCOM_BROKER_PASSWORD")
 
@@ -57,11 +59,22 @@ def main() -> None:
     ccom_broker.on_message = on_message
     ccom_broker.user_data_set(grafana_broker)
 
+    print(f"Connecting to Grafana broker at {GRAFANA_BROKER}:{GRAFANA_BROKER_PORT}")
     grafana_broker.connect(GRAFANA_BROKER, port=GRAFANA_BROKER_PORT)
+
+    print(f"Connecting to CCOM broker at {CCOM_BROKER}:{CCOM_BROKER_PORT}")
     if CCOM_BROKER_USERNAME and CCOM_BROKER_PASSWORD:
         ccom_broker.username_pw_set(CCOM_BROKER_USERNAME, CCOM_BROKER_PASSWORD)
     ccom_broker.connect(CCOM_BROKER, port=CCOM_BROKER_PORT)
     ccom_broker.subscribe("ccom/#", qos=2)
+
+    def terminate(_signal, _frame):
+        """Stop client loops and terminate program"""
+        ccom_broker.loop_stop()
+        grafana_broker.loop_stop()
+        sys.exit(0)
+
+    signal.signal(signal.SIGTERM, terminate)
 
     try:
         grafana_broker.loop_start()
