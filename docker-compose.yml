@@ -9,8 +9,6 @@ services:
       - "3000:3000"
     volumes:
       - grafana-storage:/var/lib/grafana
-    environment:
-      GF_DEFAULT_APP_MODE: development
 
   grafana-broker:
     container_name: grafana-broker
