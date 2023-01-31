@@ -1,14 +1,26 @@
 SHELL=/bin/bash
+PYTHON_VERSION=3.10
+VENV_PATH=.venv
 
-pip-tools:
+all: build up grafana-install-mqtt
+
+venv:
+	@test -d $(VENV_PATH) && echo "Virtualenv '$(VENV_PATH)' found." || \
+	echo "Virtualenv not found. Creating a virtualenv using: 'python$(PYTHON_VERSION) -m venv $(VENV_PATH)'" && \
+	python$(PYTHON_VERSION) -m venv $(VENV_PATH)
+
+pip-tools: venv
+	source $(VENV_PATH)/bin/activate && \
 	pip install --upgrade pip pip-tools wheel
 
-requirements: pip-tools
-	pip-compile --generate-hashes --resolver backtracking -o converter/requirements/app.txt converter/pyproject.toml
-	pip-compile --generate-hashes --extra dev --resolver backtracking -o converter/requirements/dev.txt converter/pyproject.toml
+dev-env: pip-tools
+	source $(VENV_PATH)/bin/activate && \
+		pip-sync converter/requirements/dev.txt converter/requirements/app.txt
 
-sync-requirements:
-	pip-sync converter/requirements/dev.txt converter/requirements/app.txt
+requirements: pip-tools
+	source $(VENV_PATH)/bin/activate && \
+		pip-compile --generate-hashes --resolver backtracking -o converter/requirements/app.txt converter/pyproject.toml && \
+	pip-compile --generate-hashes --extra dev --resolver backtracking -o converter/requirements/dev.txt converter/pyproject.toml
 
 build:
 	docker compose build
@@ -26,3 +38,5 @@ restart: down up
 
 grafana-install-mqtt:
 	docker compose exec -it grafana grafana-cli plugins install grafana-mqtt-datasource
+	docker compose stop grafana
+	docker compose up grafana -d
