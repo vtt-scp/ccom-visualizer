@@ -8,6 +8,9 @@ Visualize CCOM data from an MQTT broker with Grafana.
 - [Development](#development)
   - [Environment](#environment)
   - [Making changes](#making-changes)
+- [Backup and restore Grafana](#backup-and-restore-grafana)
+  - [Backup](#backup)
+  - [Restore](#restore)
 
 # Prerequisites
 - Docker
@@ -73,4 +76,20 @@ Restart the containers
 ```
 docker compose down
 docker compose up -d
+```
+
+# Backup and restore Grafana
+Changes and settings to Grafana are store in a docker volume called `grafana-storage`. Backups are done using docker commands in `make` targets, check the [makefile](makefile) for more information.
+
+## Backup
+A backup `.tar` can be created with command:
+```
+make backup-grafana
+```
+A backup file is created to file `./grafana-backup.tar`.
+
+## Restore
+The Grafana can be restored with the `./grafana-backup.tar` file using:
+```
+make restore-grafana
 ```

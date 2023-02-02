@@ -11,7 +11,7 @@ venv:
 
 pip-tools: venv
 	source $(VENV_PATH)/bin/activate && \
-	pip install --upgrade pip pip-tools wheel
+		pip install --upgrade pip pip-tools wheel
 
 dev-env: pip-tools
 	source $(VENV_PATH)/bin/activate && \
@@ -20,7 +20,7 @@ dev-env: pip-tools
 requirements: pip-tools
 	source $(VENV_PATH)/bin/activate && \
 		pip-compile --generate-hashes --resolver backtracking -o converter/requirements/app.txt converter/pyproject.toml && \
-	pip-compile --generate-hashes --extra dev --resolver backtracking -o converter/requirements/dev.txt converter/pyproject.toml
+		pip-compile --generate-hashes --extra dev --resolver backtracking -o converter/requirements/dev.txt converter/pyproject.toml
 
 build:
 	docker compose build
@@ -39,4 +39,22 @@ restart: down up
 grafana-install-mqtt:
 	docker compose exec -it grafana grafana-cli plugins install grafana-mqtt-datasource
 	docker compose stop grafana
+	docker compose up grafana -d
+
+backup-grafana:
+	docker run --rm \
+		--volume grafana-storage:/grafana \
+		--volume $(CURDIR):/backup \
+		ubuntu:lunar \
+		tar cvf /backup/grafana-backup.tar /grafana
+	@echo "Created file: ./grafana-backup.tar"
+
+restore-grafana:
+	@test -e grafana-backup.tar || (echo "Could not find file: ./grafana-backup.tar"; exit 1)
+	docker compose stop grafana
+	docker run --rm \
+		--volume grafana-storage:/grafana \
+		--volume $(CURDIR):/backup \
+		ubuntu:lunar \
+		tar xvf /backup/grafana-backup.tar --directory /grafana --strip 1
 	docker compose up grafana -d
